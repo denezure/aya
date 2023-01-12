@@ -6,7 +6,7 @@ use libc::{
     AF_NETLINK, AF_UNSPEC, ETH_P_ALL, IFLA_XDP, NETLINK_EXT_ACK, NETLINK_ROUTE, NLA_ALIGNTO,
     NLA_F_NESTED, NLA_TYPE_MASK, NLMSG_DONE, NLMSG_ERROR, NLM_F_ACK, NLM_F_CREATE, NLM_F_DUMP,
     NLM_F_ECHO, NLM_F_EXCL, NLM_F_MULTI, NLM_F_REQUEST, RTM_DELTFILTER, RTM_GETTFILTER,
-    RTM_NEWQDISC, RTM_NEWTFILTER, RTM_SETLINK, SOCK_RAW, SOL_NETLINK,
+    RTM_NEWQDISC, RTM_DELQDISC, RTM_NEWTFILTER, RTM_SETLINK, SOCK_RAW, SOL_NETLINK,
 };
 
 use crate::{
@@ -91,6 +91,31 @@ pub(crate) unsafe fn netlink_qdisc_add_clsact(if_index: i32) -> Result<(), io::E
     let attrs_buf = request_attributes(&mut req, nlmsg_len);
     let attr_len = write_attr_bytes(attrs_buf, 0, TCA_KIND as u16, b"clsact\0")?;
     req.header.nlmsg_len += align_to(attr_len, NLA_ALIGNTO as usize) as u32;
+
+    sock.send(&bytes_of(&req)[..req.header.nlmsg_len as usize])?;
+    sock.recv()?;
+
+    Ok(())
+}
+
+pub(crate) unsafe fn netlink_qdisc_del_clsact(if_index: i32) -> Result<(), io::Error> {
+    let sock = NetlinkSocket::open()?;
+
+    let mut req = mem::zeroed::<TcRequest>();
+
+    let nlmsg_len = mem::size_of::<nlmsghdr>() + mem::size_of::<tcmsg>();
+    req.header = nlmsghdr {
+        nlmsg_len: nlmsg_len as u32,
+        nlmsg_flags: (NLM_F_REQUEST | NLM_F_ACK) as u16,
+        nlmsg_type: RTM_DELQDISC,
+        nlmsg_pid: 0,
+        nlmsg_seq: 1,
+    };
+    req.tc_info.tcm_family = AF_UNSPEC as u8;
+    req.tc_info.tcm_ifindex = if_index;
+    req.tc_info.tcm_handle = tc_handler_make(TC_H_CLSACT, TC_H_UNSPEC);
+    req.tc_info.tcm_parent = tc_handler_make(TC_H_CLSACT, TC_H_INGRESS);
+    req.tc_info.tcm_info = 0;
 
     sock.send(&bytes_of(&req)[..req.header.nlmsg_len as usize])?;
     sock.recv()?;

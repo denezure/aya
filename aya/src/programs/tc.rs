@@ -13,7 +13,7 @@ use crate::{
     programs::{define_link_wrapper, load_program, Link, ProgramData, ProgramError},
     sys::{
         netlink_find_filter_with_name, netlink_qdisc_add_clsact, netlink_qdisc_attach,
-        netlink_qdisc_detach,
+        netlink_qdisc_del_clsact, netlink_qdisc_detach,
     },
     util::{ifindex_from_ifname, tc_handler_make},
 };
@@ -235,6 +235,14 @@ define_link_wrapper!(
 pub fn qdisc_add_clsact(if_name: &str) -> Result<(), io::Error> {
     let if_index = ifindex_from_ifname(if_name)?;
     unsafe { netlink_qdisc_add_clsact(if_index as i32) }
+}
+
+/// Remove the `clasct` qdisc from the given interface.
+///
+/// This cleans up the qdisc added by [`qdisc_add_clsact`].
+pub fn qdisc_del_clsact(if_name: &str) -> Result<(), io::Error> {
+    let if_index = ifindex_from_ifname(if_name)?;
+    unsafe { netlink_qdisc_del_clsact(if_index as i32) }
 }
 
 /// Detaches the programs with the given name.
